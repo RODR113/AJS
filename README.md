@@ -1,2 +1,0 @@
-# AJS
-Jogo dos palpites
