@@ -282,6 +282,3 @@ pages["Admin"] = lambda: page_admin(eng)
 if err:
     st.sidebar.warning(f"Não consegui ler a FPP: {err}")
 pages[st.sidebar.radio("Menu", list(pages))]()
-if err:
-    st.sidebar.warning(f"Não consegui ler a FPP: {err}")
-pages[st.sidebar.radio("Menu", list(pages))]()
