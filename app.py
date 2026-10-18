@@ -123,13 +123,13 @@ def page_initial(eng, player):
 # ---------------------------------------------------------------- consulta
 def page_round_view(eng, player):
     st.header("Palpites da jornada")
-    st.caption("Os palpites de cada jogo só aparecem a toda a gente depois do apito inicial.")
+    st.caption("Os palpites de cada jogo aparecem a toda a gente assim que o jogo fecha (sexta às 23h00 ou apito inicial, o que vier primeiro).")
     m, pl, preds = db.matches(eng), db.players(eng), db.all_predictions(eng)
     if m.empty or pl.empty:
         st.info("Ainda sem jogos ou jogadores.")
         return
     rounds = sorted(int(r) for r in m.rnd.unique())
-    started = [r for r in rounds if m[m.rnd == r].started.any()]
+    started = [r for r in rounds if m[m.rnd == r].locked.any()]
     r = st.selectbox("Jornada", rounds, index=rounds.index(started[-1] if started else rounds[0]), format_func=lambda x: f"{x}ª jornada")
     lookup = {(x.token, x.match_id): (x.h, x.a) for x in preds.itertuples()}
     rows = []
@@ -138,7 +138,7 @@ def page_round_view(eng, player):
         for g in m[m.rnd == r].sort_values("kickoff").itertuples():
             pick = lookup.get((p.token, g.id))
             own = player is not None and p.token == player.token
-            if pick and (g.started or own):
+            if pick and (g.locked or own):
                 txt = f"{pick[0]}-{pick[1]}"
                 if not pd.isna(g.home_goals):
                     txt += f" ({scoring.match_points(pick, (int(g.home_goals), int(g.away_goals)))})"
@@ -279,6 +279,9 @@ pages["Liga"] = lambda: page_league(eng)
 pages["Classificação FPP"] = lambda: page_standings(eng)
 pages["Marcadores"] = lambda: page_scorers(eng)
 pages["Admin"] = lambda: page_admin(eng)
+if err:
+    st.sidebar.warning(f"Não consegui ler a FPP: {err}")
+pages[st.sidebar.radio("Menu", list(pages))]()
 if err:
     st.sidebar.warning(f"Não consegui ler a FPP: {err}")
 pages[st.sidebar.radio("Menu", list(pages))]()
