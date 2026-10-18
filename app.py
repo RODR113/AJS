@@ -74,7 +74,10 @@ def page_picks(eng, player):
                     continue
                 db.save_prediction(eng, player.token, mid, h, a)
                 saved += 1
-            st.success(f"{saved} palpite(s) guardado(s).") if saved else st.warning("Nada guardado.")
+            if saved:
+                st.success(f"{saved} palpite(s) guardado(s).")
+            else:
+                st.warning("Nada guardado.")
             if skipped:
                 st.warning(f"{skipped} jogo(s) já estavam fechados e foram ignorados.")
 
@@ -93,25 +96,29 @@ def page_initial(eng, player):
     mine = picks[picks.token == player.token]
     old = mine.iloc[0] if not mine.empty else None
     old_rank = json.loads(old.ranking) if old is not None and old.ranking else [None] * len(teams)
-    with st.form("initial"):
-        scorer = st.text_input("Melhor marcador (nome do jogador)", old.scorer if old is not None else "", disabled=closed)
-        defense = st.selectbox("Defesa menos batida", teams, index=teams.index(old.defense) if old is not None and old.defense in teams else None, disabled=closed)
-        st.markdown("**Classificação final (1.º ao último)**")
-        cols = st.columns(2)
-        rank = []
+    if st.session_state.get("rk_owner") != player.token:  # preenche uma vez com o que já foi guardado
+        st.session_state["rk_owner"] = player.token
         for i in range(len(teams)):
             cur = old_rank[i] if i < len(old_rank) and old_rank[i] in teams else None
-            rank.append(cols[i % 2].selectbox(f"{i + 1}.º", teams, index=teams.index(cur) if cur else None, key=f"rk{i}", disabled=closed))
-        if st.form_submit_button("Guardar apostas", type="primary"):
-            if db.initial_deadline(eng) and db.now() >= db.initial_deadline(eng):
-                st.error("O prazo já terminou.")
-            elif None in rank or len(set(rank)) != len(teams):
-                st.error("Preenche todas as posições sem repetir equipas.")
-            elif not scorer.strip() or defense is None:
-                st.error("Falta o melhor marcador ou a defesa menos batida.")
-            else:
-                db.save_initial(eng, player.token, scorer.strip(), defense, json.dumps(rank))
-                st.success("Apostas guardadas.")
+            st.session_state[f"rk{i}"] = cur
+    scorer = st.text_input("Melhor marcador (nome do jogador)", old.scorer if old is not None else "", disabled=closed, key="scorer_in")
+    defense = st.selectbox("Defesa menos batida", teams, index=teams.index(old.defense) if old is not None and old.defense in teams else None, disabled=closed, key="defense_in")
+    st.markdown("**Classificação final (1.º ao último)** · cada equipa só pode aparecer numa posição")
+    cols = st.columns(2)
+    for i in range(len(teams)):
+        taken = {st.session_state.get(f"rk{j}") for j in range(len(teams)) if j != i} - {None}
+        cols[i % 2].selectbox(f"{i + 1}.º", [t for t in teams if t not in taken], index=None, key=f"rk{i}", disabled=closed)
+    rank = [st.session_state.get(f"rk{i}") for i in range(len(teams))]
+    if st.button("Guardar apostas", type="primary", disabled=closed):
+        if db.initial_deadline(eng) and db.now() >= db.initial_deadline(eng):
+            st.error("O prazo já terminou.")
+        elif None in rank or len(set(rank)) != len(teams):
+            st.error("Preenche todas as posições sem repetir equipas.")
+        elif not scorer.strip() or defense is None:
+            st.error("Falta o melhor marcador ou a defesa menos batida.")
+        else:
+            db.save_initial(eng, player.token, scorer.strip(), defense, json.dumps(rank))
+            st.success("Apostas guardadas.")
     if closed and not picks.empty:
         st.subheader("Apostas de todos")
         names = db.players(eng).set_index("token").name
