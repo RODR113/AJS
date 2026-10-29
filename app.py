@@ -184,7 +184,10 @@ def league_table(eng):
     tokens = list(rows)
     out["Jogos"], out["Bónus"], out["Exatos"] = [total[t] for t in tokens], [bonus[t] for t in tokens], [exact[t] for t in tokens]
     out["Total"] = out["Jogos"] + out["Bónus"]
-    out = out[["Jogador", "Total", "Jogos", "Bónus", "Exatos"] + rcols].sort_values(["Total", "Exatos"], ascending=False)
+    finished = db.meta_get(eng, "season_finished") == "1"
+    out = out.rename(columns={"Jogos": "Pts palpites"})
+    cols = ["Jogador", "Total"] + (["Pts palpites", "Bónus"] if finished else []) + ["Exatos"] + rcols
+    out = out[cols].sort_values(["Total", "Exatos"], ascending=False)
     out.insert(0, "#", range(1, len(out) + 1))
     return out
 
@@ -196,7 +199,7 @@ def page_league(eng):
         st.info("Ainda não há jogadores.")
     else:
         st.dataframe(t, hide_index=True, width="stretch")
-        st.caption("Jx = pontos nessa jornada · Exatos = resultados certos (desempate) · Bónus só aparece no fim do campeonato.")
+        st.caption("Jx = pontos nessa jornada · Exatos = resultados certos (desempate) · No fim do campeonato aparecem também os pontos dos palpites e o bónus.")
 
 
 def page_standings(eng):
