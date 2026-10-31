@@ -56,15 +56,44 @@ def parse_standings(soup):
     return out
 
 
-def parse_scorers(soup):
+def _scorers_from_text(soup):
+    """A página de marcadores não usa tabela: lê os textos pela ordem (posição, jogador, equipa, golos)."""
+    toks = [re.sub(r"\s+", " ", t).strip() for t in soup.stripped_strings]
+    toks = [t for t in toks if t]
+    if "Golos" in toks:
+        toks = toks[toks.index("Golos") + 1:]
+    else:
+        return []
+    out, i = [], 0
+    while i < len(toks):
+        t = toks[i]
+        if t.startswith("Resultados divulgados"):
+            break
+        m = re.match(r"^\d+\s+(.+)$", t)  # posição e nome no mesmo texto
+        if m and i + 2 < len(toks) and toks[i + 2].isdigit():
+            out.append(dict(player=m.group(1), team=_team(toks[i + 1]), goals=int(toks[i + 2])))
+            i += 3
+        elif t.isdigit() and i + 3 < len(toks) and toks[i + 3].isdigit():
+            out.append(dict(player=toks[i + 1], team=_team(toks[i + 2]), goals=int(toks[i + 3])))
+            i += 4
+        else:
+            i += 1
+    return out
+
+
+def _scorers_from_table(soup):
     out = []
     for tr in soup.find_all("tr"):
-        c = _cells(tr)
-        if len(c) >= 4 and c[0].isdigit():  # coluna de posição, se existir
+        c = [x for x in _cells(tr) if x]
+        if len(c) >= 4 and c[0].isdigit():
             c = c[1:]
-        if len(c) >= 3 and c[0] and re.fullmatch(r"\d+", c[-1]):
-            out.append(dict(player=c[0], team=_team(c[1]), goals=int(c[-1])))
+        if len(c) >= 3 and re.fullmatch(r"\d+", c[-1]) and not c[0].isdigit():
+            out.append(dict(player=c[0], team=_team(c[-2]), goals=int(c[-1])))
     return out
+
+
+def parse_scorers(soup):
+    return _scorers_from_text(soup) or _scorers_from_table(soup)
 
 
 def sync_all(eng):
@@ -87,3 +116,4 @@ def sync_all(eng):
             c.execute(text("INSERT INTO scorers (player, team, goals) VALUES (:player,:team,:goals)"), scor)
         db.meta_set(c, "last_sync", db.now().isoformat(timespec="seconds"))
     return len(cal), len(stand), len(scor)
+    
