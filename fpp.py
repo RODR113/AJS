@@ -56,29 +56,39 @@ def parse_standings(soup):
     return out
 
 
+def _tokens(soup):
+    return [t for t in (re.sub(r"\s+", " ", x).strip() for x in soup.stripped_strings) if t]
+
+
 def _scorers_from_text(soup):
-    """A página de marcadores não usa tabela: lê os textos pela ordem (posição, jogador, equipa, golos)."""
-    toks = [re.sub(r"\s+", " ", t).strip() for t in soup.stripped_strings]
-    toks = [t for t in toks if t]
-    if "Golos" in toks:
-        toks = toks[toks.index("Golos") + 1:]
-    else:
-        return []
-    out, i = [], 0
+    """A página de marcadores não usa tabela: lê os textos pela ordem (posição, jogador, equipa, golos).
+    Não depende do cabeçalho: procura sequências com a posição a subir (1, 2, 3, ...)."""
+    toks = _tokens(soup)
+    out, nxt, i = [], 1, 0
     while i < len(toks):
         t = toks[i]
-        if t.startswith("Resultados divulgados"):
+        if t.startswith("Resultados divulgados") and out:
             break
-        m = re.match(r"^\d+\s+(.+)$", t)  # posição e nome no mesmo texto
-        if m and i + 2 < len(toks) and toks[i + 2].isdigit():
-            out.append(dict(player=m.group(1), team=_team(toks[i + 1]), goals=int(toks[i + 2])))
-            i += 3
-        elif t.isdigit() and i + 3 < len(toks) and toks[i + 3].isdigit():
+        m = re.match(r"^(\d+)\s+(.+)$", t)  # posição e nome no mesmo texto
+        if m and nxt - 1 <= int(m.group(1)) <= nxt + 3 and i + 2 < len(toks) and toks[i + 2].isdigit():
+            out.append(dict(player=m.group(2), team=_team(toks[i + 1]), goals=int(toks[i + 2])))
+            nxt, i = max(nxt, int(m.group(1)) + 1), i + 3
+        elif (t.isdigit() and nxt - 1 <= int(t) <= nxt + 3 and i + 3 < len(toks)
+              and toks[i + 3].isdigit() and not toks[i + 1].isdigit() and not toks[i + 2].isdigit()):
             out.append(dict(player=toks[i + 1], team=_team(toks[i + 2]), goals=int(toks[i + 3])))
-            i += 4
+            nxt, i = max(nxt, int(t) + 1), i + 4
         else:
             i += 1
     return out
+
+
+def debug_scorers():
+    """Para o Admin: mostra o que o servidor recebe da página de marcadores."""
+    r = requests.get(f"{BASE}/Marcadores/{COMP}", headers=HEADERS, timeout=20)
+    soup = BeautifulSoup(r.text, "html.parser")
+    toks = _tokens(soup)
+    return {"http": r.status_code, "bytes": len(r.text), "textos": len(toks),
+            "lidos": len(parse_scorers(soup)), "primeiros_textos": toks[:40]}
 
 
 def _scorers_from_table(soup):
