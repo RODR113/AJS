@@ -264,6 +264,11 @@ def page_admin(eng):
             db.meta_set(c, "season_finished", "1" if fin else "0")
         st.success("Guardado.")
     st.write(f"Última leitura da FPP: {db.meta_get(eng, 'last_sync') or 'nunca'}")
+    if st.button("Testar leitura dos marcadores"):
+        try:
+            st.json(fpp.debug_scorers())
+        except Exception as ex:
+            st.error(str(ex))
     if st.button("Atualizar da FPP agora"):
         sync_job.clear()
         st.rerun()
