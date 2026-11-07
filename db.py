@@ -1,4 +1,4 @@
-import os, secrets, types
+ import os, secrets, types
 from collections import Counter
 from datetime import datetime, timedelta, time
 from zoneinfo import ZoneInfo
@@ -90,11 +90,12 @@ def new_token(eng, old):
 
 # ---------- jogos e prazos ----------
 def round_deadline(kickoffs):
-    """Sexta-feira às 23h00 anterior ao dia em que se joga a maioria dos jogos da jornada."""
+    """Sábado às 12h00 da semana em que se joga a maioria dos jogos da jornada
+    (se a maioria for a meio da semana, é o sábado anterior)."""
     cnt = Counter(k.date() for k in kickoffs)
     ref = max(cnt, key=lambda d: (cnt[d], -d.toordinal()))
-    back = (ref.weekday() - 4) % 7
-    return datetime.combine(ref - timedelta(days=back), time(23, 0))
+    back = (ref.weekday() - 5) % 7
+    return datetime.combine(ref - timedelta(days=back), time(12, 0))
 
 
 def matches(eng):
@@ -104,7 +105,7 @@ def matches(eng):
     d["kickoff"] = pd.to_datetime(d["kickoff"])
     dl = {r: pd.Timestamp(round_deadline(list(g.kickoff))) for r, g in d.groupby("rnd")}
     d["deadline"] = pd.to_datetime(d["rnd"].map(dl))
-    d["lock"] = d[["kickoff", "deadline"]].min(axis=1)  # fecha ao apito ou na sexta, o que vier primeiro
+    d["lock"] = d[["kickoff", "deadline"]].min(axis=1)  # fecha ao apito ou no sábado às 12h, o que vier primeiro
     n = pd.Timestamp(now())
     d["started"] = d["kickoff"] <= n
     d["locked"] = d["lock"] <= n
