@@ -119,15 +119,36 @@ def page_initial(eng, player):
         else:
             db.save_initial(eng, player.token, scorer.strip(), defense, json.dumps(rank))
             st.success("Apostas guardadas.")
-    if closed and not picks.empty:
-        st.subheader("Apostas de todos")
-        names = db.players(eng).set_index("token").name
-        t = pd.DataFrame({"Jogador": picks.token.map(names), "Marcador": picks.scorer, "Defesa": picks.defense,
-                          **{f"{i + 1}.º": [json.loads(r)[i] for r in picks.ranking] for i in range(len(teams))}})
-        st.dataframe(t, hide_index=True, width="stretch")
+    if closed:
+        st.info("As apostas de todos estão no menu \"Apostas de todos\".")
 
 
 # ---------------------------------------------------------------- consulta
+def page_initial_all(eng):
+    st.header("Apostas iniciais de todos")
+    dl = db.initial_deadline(eng)
+    if dl is None or db.now() < dl:
+        st.info("As apostas iniciais de todos ficam visíveis depois do prazo" + (f" ({fmt_dt(dl)})." if dl else "."))
+        return
+    picks, pl = db.initial_picks(eng), db.players(eng)
+    if picks.empty:
+        st.info("Ninguém enviou apostas iniciais.")
+        return
+    picks = picks.assign(Jogador=picks.token.map(pl.set_index("token").name)).dropna(subset=["Jogador"]).sort_values("Jogador")
+    st.subheader("Melhor marcador e defesa menos batida")
+    st.dataframe(picks[["Jogador", "scorer", "defense"]].rename(columns={"scorer": "Melhor marcador", "defense": "Defesa menos batida"}),
+                 hide_index=True, width="stretch")
+    st.subheader("Classificação final prevista")
+    ranks = {r.Jogador: json.loads(r.ranking or "[]") for r in picks.itertuples()}
+    n = max((len(v) for v in ranks.values()), default=0)
+    tab = pd.DataFrame({"Pos.": [f"{i + 1}.º" for i in range(n)],
+                        **{nome: [v[i] if i < len(v) else "" for i in range(n)] for nome, v in ranks.items()}})
+    st.dataframe(tab, hide_index=True, width="stretch")
+    falta = [x for x in pl.name if x not in set(picks.Jogador)]
+    if falta:
+        st.caption("Sem apostas iniciais: " + ", ".join(falta))
+
+
 def page_round_view(eng, player):
     st.header("Palpites da jornada")
     st.caption("Os palpites de cada jogo aparecem a toda a gente assim que o jogo fecha (sábado às 12h00 ou apito inicial, o que vier primeiro).")
@@ -290,6 +311,7 @@ if player:
 else:
     st.sidebar.info("Modo leitura. Para palpitar usa o teu link pessoal.")
 pages["Palpites da jornada"] = lambda: page_round_view(eng, player)
+pages["Apostas de todos"] = lambda: page_initial_all(eng)
 pages["Liga"] = lambda: page_league(eng)
 pages["Classificação FPP"] = lambda: page_standings(eng)
 pages["Marcadores"] = lambda: page_scorers(eng)
