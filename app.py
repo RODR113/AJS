@@ -151,7 +151,7 @@ def page_initial_all(eng):
 
 def page_round_view(eng, player):
     st.header("Palpites da jornada")
-    st.caption("Os palpites de cada jogo aparecem a toda a gente assim que o jogo fecha (sábado às 12h00 ou apito inicial, o que vier primeiro).")
+    st.caption("Os palpites de cada jogo aparecem a toda a gente assim que o jogo fecha (sábado às 15h59 ou apito inicial, o que vier primeiro).")
     m, pl, preds = db.matches(eng), db.players(eng), db.all_predictions(eng)
     if m.empty or pl.empty:
         st.info("Ainda sem jogos ou jogadores.")
